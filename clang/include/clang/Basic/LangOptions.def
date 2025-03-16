@@ -535,6 +535,9 @@ LANGOPT(BoundsSafety, 1, 0, "Bounds safety extension for C")
 
 LANGOPT(PreserveVec3Type, 1, 0, "Preserve 3-component vector type")
 
+BENIGN_LANGOPT(VerifiableNonNull, 1, 1, "[[clang::verifiable_nonnull]] attribute "
+               "pointer nullability verification")
+
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT
 #undef BENIGN_LANGOPT

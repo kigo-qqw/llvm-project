@@ -5030,3 +5030,8 @@ def OpenACCRoutineAnnot : InheritableAttr {
     SourceLocation BindClause;
   }];
 }
+
+def VerifiableNonNull : TypeAttr {
+  let Spellings = [Clang<"verifiable_nonnull">];
+  let Documentation = [VerifiableNonNullDocs];
+}

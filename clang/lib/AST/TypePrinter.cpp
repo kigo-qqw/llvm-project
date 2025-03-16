@@ -1890,6 +1890,12 @@ void TypePrinter::printAttributedBefore(const AttributedType *T,
       llvm_unreachable("unhandled nullability");
     spaceBeforePlaceHolder(OS);
   }
+
+  // Print verifiable Nonnull attribute
+  if (T->getAttrKind() == attr::VerifiableNonNull) {
+     OS << " [[clang::verifiable_nonnull]]";
+     spaceBeforePlaceHolder(OS);
+  }
 }
 
 void TypePrinter::printAttributedAfter(const AttributedType *T,
@@ -1910,7 +1916,8 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   // Some attributes are printed as qualifiers before the type, so we have
   // nothing left to do.
   if (T->getAttrKind() == attr::ObjCKindOf || T->isMSTypeSpec() ||
-      T->getImmediateNullability() || T->isWebAssemblyFuncrefSpec())
+      T->getImmediateNullability() || T->isWebAssemblyFuncrefSpec() ||
+      T->getAttrKind() == attr::VerifiableNonNull)
     return;
 
   // Don't print the inert __unsafe_unretained attribute at all.
@@ -2031,6 +2038,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::Blocking:
   case attr::Allocating:
   case attr::SwiftAttr:
+  case attr::VerifiableNonNull:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:

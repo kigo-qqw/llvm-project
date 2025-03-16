@@ -9242,3 +9242,10 @@ Declares that a function potentially allocates heap memory, and prevents any pot
 of ``nonallocating`` by the compiler.
   }];
 }
+
+def VerifiableNonNullDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+FIXME: documentation.
+  }];
+}

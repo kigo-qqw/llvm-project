@@ -4183,6 +4183,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.Blocks = Args.hasArg(OPT_fblocks) || (Opts.OpenCL
     && Opts.OpenCLVersion == 200);
 
+  Opts.VerifiableNonNull = Args.hasArg(OPT_fverifiable_nonnull);
+
   bool HasConvergentOperations = Opts.OpenMPIsTargetDevice || Opts.OpenCL ||
                                  Opts.CUDAIsDevice || Opts.SYCLIsDevice ||
                                  Opts.HLSL || T.isAMDGPU() || T.isNVPTX();

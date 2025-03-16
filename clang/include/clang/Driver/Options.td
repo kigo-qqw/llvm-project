@@ -9096,3 +9096,8 @@ def wasm_opt : Flag<["--"], "wasm-opt">,
   Group<m_Group>,
   HelpText<"Enable the wasm-opt optimizer (default)">,
   MarshallingInfoNegativeFlag<LangOpts<"NoWasmOpt">>;
+
+def fverifiable_nonnull : Flag<["-"], "fverifiable-nonnull">, Group<f_Group>, Visibility<[CC1Option]>,
+  HelpText<"Enable pointer nullability verification via [[clang::verifiable_nonnull]]">;
+def fno_verifiable_nonnull : Flag<["-"], "fno-verifiable-nonnull">, Group<f_Group>, Visibility<[CC1Option]>,
+  HelpText<"Disable pointer nullability verification via [[clang::verifiable_nonnull]]">;

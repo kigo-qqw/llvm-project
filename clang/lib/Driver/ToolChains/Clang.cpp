@@ -6770,6 +6770,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fraw_string_literals,
                   options::OPT_fno_raw_string_literals);
 
+  if (Args.hasFlag(options::OPT_fverifiable_nonnull, options::OPT_fno_verifiable_nonnull, false)
+    && types::isCXX(InputType)) {
+    CmdArgs.push_back("-fverifiable_nonnull");
+  }
+
   if (Args.hasFlag(options::OPT_femulated_tls, options::OPT_fno_emulated_tls,
                    Triple.hasDefaultEmulatedTLS()))
     CmdArgs.push_back("-femulated-tls");

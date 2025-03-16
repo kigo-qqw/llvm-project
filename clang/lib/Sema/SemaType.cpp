@@ -742,6 +742,9 @@ static void distributeTypeAttrsFromDeclarator(TypeProcessingState &state,
 
     // Objective-C __kindof does not get distributed.
     case ParsedAttr::AT_ObjCKindOf:
+
+    // Verifiable Nonnull attribute cannot go after the declarator-id
+    case ParsedAttr::AT_VerifiableNonNull:
       continue;
 
     default:
@@ -9043,6 +9046,15 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
           state.getSema().HLSL().handleResourceTypeAttr(type, attr))
         attr.setUsedAsTypeAttr();
       break;
+    }
+    case ParsedAttr::AT_VerifiableNonNull: {
+      llvm::outs() << "processTypeAttrs VerifiableNonNull\n";
+      llvm::outs() << type.getAsString() << "\n";
+
+      ASTContext &Ctx = state.getSema().Context;
+
+      type = state.getAttributedType(createSimpleAttr<VerifiableNonNullAttr>(Ctx, attr), type, type);
+      attr.setUsedAsTypeAttr();
     }
     }
 
