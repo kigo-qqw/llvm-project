@@ -60,6 +60,8 @@ def Nullability : Package<"nullability">,
                   Released>
   ]>;
 
+def VerifiableNonNull : Package<"verifiable_nonnull">;
+
 def Cplusplus : Package<"cplusplus">;
 def CplusplusAlpha : Package<"cplusplus">, ParentPackage<Alpha>;
 def CplusplusOptIn : Package<"cplusplus">, ParentPackage<OptIn>;
@@ -361,6 +363,28 @@ def NullableReturnedFromNonnullChecker : Checker<"NullableReturnedFromNonnull">,
   Documentation<NotDocumented>;
 
 } // end "nullability"
+
+let ParentPackage = VerifiableNonNull in {
+def VerifiableNonNullChecker : Checker<"VerifiableNonNullChecker">,
+  HelpText<"TODO">,
+  Documentation<NotDocumented>,
+  Hidden;
+
+def NullableDereference : Checker<"NullableDereference">,
+  HelpText<"TODO">,
+  Dependencies<[VerifiableNonNullChecker]>,
+  Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
+
+def NullptrPassedToNonnull : Checker<"NullptrPassedToNonnull">,
+  HelpText<"TODO">,
+  Dependencies<[VerifiableNonNullChecker]>,
+  Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
+
+def NullablePassedToNonnull : Checker<"NullablePassedToNonnull">,
+  HelpText<"TODO">,
+  Dependencies<[VerifiableNonNullChecker]>,
+  Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
+}
 
 //===----------------------------------------------------------------------===//
 // APIModeling.

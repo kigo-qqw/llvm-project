@@ -112,6 +112,15 @@ Nullability getNullabilityAnnotation(QualType Type) {
   return Nullability::Unspecified;
 }
 
+bool pointeeIsVerifiableNonNull(QualType T) {
+  llvm::dbgs() << "[pointeeIsVerifiableNonNull] T = " << T.getAsString()
+               << '\n';
+  if (auto &&PT = T->getAs<PointerType>()) {
+    return T->hasAttr(attr::VerifiableNonNull);
+  }
+  return false;
+}
+
 std::optional<int> tryExpandAsInteger(StringRef Macro, const Preprocessor &PP) {
   const auto *MacroII = PP.getIdentifierInfo(Macro);
   if (!MacroII)

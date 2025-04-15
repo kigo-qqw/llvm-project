@@ -9048,9 +9048,6 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       break;
     }
     case ParsedAttr::AT_VerifiableNonNull: {
-      llvm::outs() << "processTypeAttrs VerifiableNonNull\n";
-      llvm::outs() << type.getAsString() << "\n";
-
       ASTContext &Ctx = state.getSema().Context;
 
       type = state.getAttributedType(createSimpleAttr<VerifiableNonNullAttr>(Ctx, attr), type, type);

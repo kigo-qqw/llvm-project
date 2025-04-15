@@ -129,6 +129,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   VLASizeChecker.cpp
   ValistChecker.cpp
   VirtualCallChecker.cpp
+  VerifiableNonNullChecker.cpp
   WebKit/ASTUtils.cpp
   WebKit/ForwardDeclChecker.cpp
   WebKit/MemoryUnsafeCastChecker.cpp

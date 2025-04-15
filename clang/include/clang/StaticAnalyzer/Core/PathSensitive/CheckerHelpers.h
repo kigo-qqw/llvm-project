@@ -67,6 +67,8 @@ enum class Nullability : char {
 /// Get nullability annotation for a given type.
 Nullability getNullabilityAnnotation(QualType Type);
 
+bool pointeeIsVerifiableNonNull(QualType T);
+
 /// Try to parse the value of a defined preprocessor macro. We can only parse
 /// simple expressions that consist of an optional minus sign token and then a
 /// token for an integer. If we cannot parse the value then std::nullopt is
