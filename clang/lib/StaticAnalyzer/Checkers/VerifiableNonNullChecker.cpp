@@ -236,11 +236,8 @@ void VerifiableNonNullChecker::checkPreCall(const CallEvent &Call,
     return;
 
   llvm::dbgs() << __PRETTY_FUNCTION__ << '\n';
-  llvm::dbgs() << "VerifiableNonNullChecker::checkPreCall(const CallEvent "
-                  "&Call, CheckerContext &C)"
-               << '\n';
   Call.dump(llvm::dbgs());
-  llvm::dbgs() << '\n';
+  llvm::dbgs() << "\n\n";
 
   auto &&State = C.getState();
 
@@ -329,6 +326,7 @@ void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
                                             CheckerContext &C) const {
   llvm::dbgs() << __PRETTY_FUNCTION__ << '\n';
   S->dump();
+  llvm::dbgs() << "\n\n";
 
   auto &&RE = S->getRetValue();
   if (!RE) {
@@ -375,6 +373,10 @@ void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
 
 void VerifiableNonNullChecker::checkPostStmt(const ExplicitCastExpr *CE,
                                              CheckerContext &C) const {
+  llvm::dbgs() << __PRETTY_FUNCTION__ << '\n';
+  CE->dump();
+  llvm::dbgs() << "\n\n";
+
   auto &&OT = CE->getSubExpr()->getType();
   auto &&CT = CE->getType();
 
