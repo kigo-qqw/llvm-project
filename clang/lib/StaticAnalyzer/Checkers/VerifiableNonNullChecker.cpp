@@ -152,12 +152,12 @@ bool isNonNullableType(const PointerType *T) {
 
 class NullabilityState final {
 public:
-  NullabilityState(const bool isNonnull,
-                   std::optional<const Expr *> source = std::nullopt)
+  explicit NullabilityState(const bool isNonnull,
+                            std::optional<const Expr *> source = std::nullopt)
       : mIsNonnull(isNonnull), mSource(std::move(source)) {}
   void Profile(llvm::FoldingSetNodeID &ID) const {
     ID.AddBoolean(mIsNonnull);
-    ID.AddPointer(mSource ? *mSource : nullptr);
+    ID.AddPointer(mSource.value_or(nullptr));
   }
   auto IsNonnull() const { return mIsNonnull; }
   auto Source() const { return mSource; }
