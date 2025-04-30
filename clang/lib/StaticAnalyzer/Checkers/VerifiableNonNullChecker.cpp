@@ -1,15 +1,31 @@
-#include "Iterator.h"
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
 
+#include "clang/AST/Expr.h"
+#include "clang/AST/Stmt.h"
+#include "clang/AST/Type.h"
+#include "clang/Analysis/AnyCall.h"
+#include "clang/Basic/AttrKinds.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
+#include "clang/StaticAnalyzer/Core/BugReporter/CommonBugCategories.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerHelpers.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/MemRegion.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState_Fwd.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ExecutionEngine/GenericValue.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace clang;
 using namespace ento;
@@ -43,7 +59,7 @@ public:
                  << '\n';
     if (iterator::isAccessOperator(BO->getOpcode())) {
       llvm::dbgs() << "access operator" << '\n';
-      verifyAccess(C, BO->getLHS()); // TODO: check 8[a]
+      verifyAccess(C, BO->getLHS()); // TODO: check 8[a] FIX
     }
   }
 
@@ -136,6 +152,15 @@ namespace {
 #define STRINGIFY(x) STRINGIFY_DETAIL(x)
 #define AT() " \tat file: " __FILE__ ":" STRINGIFY(__LINE__)
 
+std::string Colored(std::string &&fg, std::string &&bg,
+                    const std::string &str) {
+  constexpr auto kCSI = "\x1b[";
+  return kCSI + fg + ";" + bg + "m" + str + kCSI + "0m";
+}
+
+std::string Red(const std::string &str) { return Colored("97", "41", str); }
+std::string Blue(const std::string &str) { return Colored("97", "44", str); }
+
 enum class VerifiableNonNullCheckerErrorKind : unsigned {
   NullableDereference,     // *GetNullable();
   NullptrPassedToNonnull,  // F(nullptr);
@@ -144,7 +169,10 @@ enum class VerifiableNonNullCheckerErrorKind : unsigned {
   kCount
 };
 
-bool isPointerType(const QualType &T) { return T->getAs<PointerType>(); }
+constexpr unsigned kVerifiableNonNullCheckerErrorKindCount =
+    static_cast<unsigned>(VerifiableNonNullCheckerErrorKind::kCount);
+
+bool isPointerType(const QualType &T) { return T->isPointerType(); }
 
 bool isNonNullableType(const PointerType *T) {
   return T->hasAttr(attr::VerifiableNonNull);
@@ -175,11 +203,24 @@ bool operator==(const NullabilityState &Lhs, const NullabilityState &Rhs) {
 REGISTER_MAP_WITH_PROGRAMSTATE(NullabilityMap, const MemRegion *,
                                NullabilityState)
 
+llvm::raw_ostream &operator<<(
+    llvm::raw_ostream &OS,
+    const decltype(std::declval<ProgramStateRef>()->get<NullabilityMap>()) &M) {
+  OS << '\n';
+  for (auto &&[K, V] : M) {
+    OS << "NullabilityMap[" << K << "] = {IsNonnull = " << V.IsNonnull()
+       << ", Source = " << V.Source() << "}" << '\n';
+  }
+  return OS;
+}
+
 namespace {
 class VerifiableNonNullChecker final
-    : public Checker<check::PreCall, check::PreStmt<ReturnStmt>,
+    : public Checker<check::BeginFunction, check::PreCall,
+                     check::PreStmt<ReturnStmt>,
                      check::PostStmt<ExplicitCastExpr>> {
 public:
+  [[maybe_unused]] void checkBeginFunction(CheckerContext &C) const;
   [[maybe_unused]] void checkPreCall(const CallEvent &Call,
                                      CheckerContext &C) const;
   [[maybe_unused]] void checkPreStmt(const ReturnStmt *S,
@@ -199,10 +240,8 @@ private:
 
   [[nodiscard]] const SymbolicRegion *getTrackingRegion(const SVal &V) const;
 
-  CheckerNameRef
-      CNs[static_cast<unsigned>(VerifiableNonNullCheckerErrorKind::kCount)];
-  mutable std::unique_ptr<BugType>
-      BTs[static_cast<unsigned>(VerifiableNonNullCheckerErrorKind::kCount)];
+  CheckerNameRef CNs[kVerifiableNonNullCheckerErrorKindCount];
+  mutable std::unique_ptr<BugType> BTs[kVerifiableNonNullCheckerErrorKindCount];
 };
 
 void VerifiableNonNullChecker::registerChecker(
@@ -230,74 +269,145 @@ VerifiableNonNullChecker::getTrackingRegion(const SVal &V) const {
   return dyn_cast<SymbolicRegion>(R);
 }
 
+void VerifiableNonNullChecker::checkBeginFunction(CheckerContext &C) const {
+  llvm::dbgs() << __PRETTY_FUNCTION__ << '\n';
+  C.getLocationContext()->getDecl()->dump(llvm::dbgs());
+  llvm::dbgs() << '\n';
+
+  if (!C.inTopFrame()) {
+    llvm::dbgs() << Red("!C.inTopFrame()") << '\n';
+    return;
+  }
+
+  auto &&Ctx = C.getLocationContext();
+  auto &&Call = AnyCall::forDecl(Ctx->getDecl());
+
+  if (!Call || Call->parameters().empty()) {
+    if (!Call)
+      llvm::dbgs() << Red("!Call") << '\n';
+    if (Call->parameters().empty())
+      llvm::dbgs() << Red("Call->parameters().empty()") << '\n';
+
+    return;
+  }
+
+  ProgramStateRef State = C.getState();
+
+  for (auto &&Param : Call->parameters()) {
+    llvm::dbgs() << "Param = ";
+    Param->dump();
+    llvm::dbgs() << "\n\n";
+
+    if (!isPointerType(Param->getType())) {
+      llvm::dbgs() << Blue("[BeginFunction] !isPointerType(Param->getType())")
+                   << '\n';
+      continue;
+    }
+
+    auto &&IsTypeNonNullable =
+        isNonNullableType(Param->getType()->getAs<PointerType>());
+
+    if (IsTypeNonNullable) {
+      llvm::dbgs() << Blue("[BeginFunction] IsTypeNonNullable") << '\n';
+      continue;
+    }
+
+    const VarRegion *ParamRegion = State->getRegion(Param, Ctx);
+    const MemRegion *ParamPointeeRegion =
+        State->getSVal(ParamRegion).getAsRegion();
+    if (!ParamPointeeRegion) {
+      llvm::dbgs() << Blue("!ParamPointeeRegion") << '\n';
+      continue;
+    }
+
+    State = State->set<NullabilityMap>(ParamPointeeRegion,
+                                       NullabilityState(IsTypeNonNullable));
+
+    llvm::dbgs() << "[DUMP]\n" << State->get<NullabilityMap>() << '\n';
+  }
+  C.addTransition(State);
+}
+
 void VerifiableNonNullChecker::checkPreCall(const CallEvent &Call,
                                             CheckerContext &C) const {
-  if (!Call.getDecl())
-    return;
-
   llvm::dbgs() << __PRETTY_FUNCTION__ << '\n';
   Call.dump(llvm::dbgs());
   llvm::dbgs() << "\n\n";
+
+  if (!Call.getDecl()) {
+    llvm::dbgs() << Red("!Call.getDecl()") << '\n';
+    return;
+  }
 
   auto &&State = C.getState();
 
   unsigned I{};
   auto &&NArgs = Call.getNumArgs();
   for (const auto *Param : Call.parameters()) {
-    if (!isPointerType(Param->getType()))
+    if (!isPointerType(Param->getType())) {
+      llvm::dbgs() << Blue("!isPointerType(Param->getType())") << '\n';
       continue;
+    }
 
     if (Param->isParameterPack()) { // TODO : ?? mb check param-pack
-      llvm::dbgs() << "Param->isParameterPack()" << AT() << '\n';
+      llvm::dbgs() << Blue("Param->isParameterPack()") << '\n';
       break;
     }
 
     if (I >= NArgs) {
-      llvm::dbgs() << "I >= NArgs" << AT() << '\n';
+      llvm::dbgs() << Blue("I >= NArgs") << '\n';
       break;
     }
 
+    auto &&ParamPtr = Param->getType()->getAs<PointerType>();
     const auto *ArgExpr = Call.getArgExpr(I);
+    auto &&ArgType = ArgExpr->IgnoreImpCasts()->getType();
+    if (!ArgType->isPointerType()) {
+      // WARNING: if arg not pointer and Param marked as
+      // [[clang::verifiable_nonnull]]
+      continue;
+    }
 
-    llvm::dbgs() << "ArgSVal = ";
-    Call.getArgSVal(I).dump();
-    llvm::dbgs() << '\n';
+    auto &&ArgPtr = ArgType->getAs<PointerType>();
 
-    llvm::dbgs() << "Call.getArgSVal(I).getAs<UndefinedVal>().has_value() = "
-                 << Call.getArgSVal(I).getAs<UndefinedVal>().has_value()
-                 << '\n';
+    // llvm::dbgs() << "ArgSVal = ";
+    // Call.getArgSVal(I).dump();
+    // llvm::dbgs() << '\n';
+    //
+    // llvm::dbgs() << "Call.getArgSVal(I).getAs<UndefinedVal>().has_value() = "
+    //              << Call.getArgSVal(I).getAs<UndefinedVal>().has_value()
+    //              << '\n';
 
     auto &&ArgSVal = Call.getArgSVal(I++).getAs<DefinedOrUnknownSVal>();
     if (!ArgSVal) {
       // TODO : warning if expression type not nonnull and no invariant
-      llvm::dbgs() << "!ArgSVal" << AT() << '\n';
+      llvm::dbgs() << Blue("!ArgSVal") << '\n';
       continue;
     }
 
     auto &&SValIsNull = State->isNull(*ArgSVal);
 
-    auto &&IsParamNonNullable = isNonNullableType(
-        Param->getType()
-            ->getAs<PointerType>()); // TODO : mb change to getOriginalType ?
-    auto &&IsExprTypeNonNullable = isNonNullableType(
-        ArgExpr->IgnoreImpCasts()
-            ->getType()
-            ->getAs<PointerType>()); // TODO : special check that ignore casts?
+    auto &&IsParamNonNullable = isNonNullableType(ParamPtr);
+    auto &&IsExprTypeNonNullable =
+        isNonNullableType(ArgPtr); // TODO : special check that ignore casts?
 
-    llvm::dbgs() << "SValIsNull.isConstrainedTrue() && !IsExprTypeNonNullable "
-                    "&& IsParamNonNullable"
-                 << AT() << '\n';
-    llvm::dbgs() << "SValIsNull.isConstrainedTrue() = "
-                 << SValIsNull.isConstrainedTrue() << '\n';
-    llvm::dbgs() << "IsExprTypeNonNullable = " << IsExprTypeNonNullable << '\n';
-    llvm::dbgs() << "IsParamNonNullable = " << IsParamNonNullable << '\n';
+    // llvm::dbgs() << "SValIsNull.isConstrainedTrue() && !IsExprTypeNonNullable
+    // "
+    //                 "&& IsParamNonNullable"
+    //              << AT() << '\n';
+    // llvm::dbgs() << "SValIsNull.isConstrainedTrue() = "
+    //              << SValIsNull.isConstrainedTrue() << '\n';
+    // llvm::dbgs() << "IsExprTypeNonNullable = " << IsExprTypeNonNullable <<
+    // '\n'; llvm::dbgs() << "IsParamNonNullable = " << IsParamNonNullable <<
+    // '\n';
 
-    if (SValIsNull.isConstrainedTrue() // explicitly nullptr
-        && !IsExprTypeNonNullable      // passed explicitly nullptr
-        && IsParamNonNullable) {
+    if (SValIsNull.isConstrainedTrue() && !IsExprTypeNonNullable &&
+        IsParamNonNullable) {
       auto *N = C.generateErrorNode(State);
-      if (!N)
+      if (!N) {
+        llvm::dbgs() << Red("!N") << '\n';
         return;
+      }
 
       SmallString<256> Buf;
       llvm::raw_svector_ostream OS(Buf);
@@ -313,8 +423,10 @@ void VerifiableNonNullChecker::checkPreCall(const CallEvent &Call,
     }
 
     const MemRegion *R = getTrackingRegion(*ArgSVal);
-    if (!R)
+    if (!R) {
+      llvm::dbgs() << Blue("!R") << '\n';
       continue;
+    }
 
     const NullabilityState *S = State->get<NullabilityMap>(R);
 
@@ -330,19 +442,19 @@ void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
 
   auto &&RE = S->getRetValue();
   if (!RE) {
-    llvm::dbgs() << "return without value" << '\n';
+    llvm::dbgs() << Red("return without value") << '\n';
     return;
   }
 
   auto &&FuncDecl = C.getLocationContext()->getDecl()->getAsFunction();
   if (!FuncDecl) {
-    llvm::dbgs() << "no function decl" << '\n';
+    llvm::dbgs() << Red("no function decl") << '\n';
     return;
   }
 
   auto &&RequiredReturnTypeQT = FuncDecl->getReturnType();
   if (!RequiredReturnTypeQT->isPointerType()) {
-    llvm::dbgs() << "required return type is not pointer" << '\n';
+    llvm::dbgs() << Red("required return type is not pointer") << '\n';
     return;
   }
 
@@ -350,12 +462,20 @@ void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
 
   auto &&IsRequiredReturnTypeNonNullable =
       isNonNullableType(RequiredReturnType);
-  if (!RE->getType()->isPointerType())
+  if (!RE->getType()->isPointerType()) {
+    llvm::dbgs() << Red("!RE->getType()->isPointerType()") << '\n';
     return;
+  }
+
+  auto &&ReturnExprType = RE->IgnoreImpCasts()->getType();
+  if (!ReturnExprType->isPointerType()) {
+    // WARNING: if return expression not pointer and required return type marked
+    // as [[clang::verifiable_nonnull]]
+    return;
+  }
+  auto &&ReturnExprPtr = ReturnExprType->getAs<PointerType>();
   auto &&IsActualReturnExprTypeNonNullable = isNonNullableType(
-      RE->IgnoreImpCasts()
-          ->getType()
-          ->getAs<PointerType>()); // TODO : special check that ignore casts?
+      ReturnExprPtr); // TODO: special check that ignore casts?
 
   llvm::dbgs() << "IsRequiredReturnTypeNonNullable = "
                << IsRequiredReturnTypeNonNullable << '\n';
@@ -365,8 +485,10 @@ void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
   auto &&State = C.getState();
 
   auto &&ReturnSVal = C.getSVal(S).getAs<DefinedOrUnknownSVal>();
-  if (!ReturnSVal)
+  if (!ReturnSVal) {
+    llvm::dbgs() << Red("!ReturnSVal") << '\n';
     return; // TODO: no value to analysis / warn?
+  }
 
   auto &&ReturnSValIsNull = State->isNull(*ReturnSVal);
 }
@@ -402,69 +524,23 @@ void VerifiableNonNullChecker::reportBug(
 
 } // namespace
 
-#if 0
-void ento::registerVerifiableNonNullDereferenceChecker(CheckerManager &mgr) {
-  mgr.registerChecker<VerifiableNonNullDereferenceChecker>();
-  VerifiableNonNullDereferenceChecker *C =
-      mgr.getChecker<VerifiableNonNullDereferenceChecker>();
-  C->CheckerName = mgr.getCurrentCheckerName();
-}
-
-bool ento::shouldRegisterVerifiableNonNullDereferenceChecker(
-    CheckerManager const &) {
-  return true;
-}
-#endif
-
-// void ento::registerVerifiableNonNullDereferenceChecker(CheckerManager &mgr) {
-//   mgr.registerChecker<VerifiableNonNullChecker>();
-//   VerifiableNonNullChecker *C = mgr.getChecker<VerifiableNonNullChecker>();
-//
-//   // TODO : separate into different registers due to Checkers.td
-//   registerChecker(
-//       C, VerifiableNonNullCheckerErrorKind::NullptrPassedToNonnull,
-//       mgr.getCurrentCheckerName() /* TODO : change to right checker anme */);
-// }
-//
-// bool ento::shouldRegisterVerifiableNonNullDereferenceChecker(
-//     CheckerManager const &) {
-//   return true;
-// }
-//
-// void ento::registerVerifiableNonNullParamChecker(CheckerManager &mgr) {
-//   mgr.registerChecker<VerifiableNonNullParamChecker>();
-//   // VerifiableNonNullDereferenceChecker *C =
-//   //     mgr.getChecker<VerifiableNonNullDereferenceChecker>();
-//   // C->CheckerName = mgr.getCurrentCheckerName();
-// }
-//
-// bool ento::shouldRegisterVerifiableNonNullParamChecker(CheckerManager const
-// &) {
-//   return true;
-// }
-
-void ento::registerVerifiableNonNullChecker(CheckerManager &mgr) {
+void clang::ento::registerVerifiableNonNullChecker(CheckerManager &mgr) {
   mgr.registerChecker<VerifiableNonNullChecker>();
-  // VerifiableNonNullChecker *C = mgr.getChecker<VerifiableNonNullChecker>();
-  //
-  // TODO : separate into different registers due to Checkers.td
-  // registerChecker(
-  //     C, VerifiableNonNullCheckerErrorKind::NullptrPassedToNonnull,
-  //     mgr.getCurrentCheckerName() /* TODO : change to right checker anme */);
 }
 
-bool ento::shouldRegisterVerifiableNonNullChecker(CheckerManager const &) {
+bool clang::ento::shouldRegisterVerifiableNonNullChecker(
+    CheckerManager const &) {
   return true;
 }
 
 #define REGISTER_VERIFIABLE_NONNULL_CHECKER(CHECKER_NAME)                      \
-  void ento::register##CHECKER_NAME(CheckerManager &mgr) {                     \
+  void clang::ento::register##CHECKER_NAME(CheckerManager &mgr) {              \
     VerifiableNonNullChecker *C = mgr.getChecker<VerifiableNonNullChecker>();  \
     C->registerChecker(VerifiableNonNullCheckerErrorKind::CHECKER_NAME,        \
                        mgr.getCurrentCheckerName());                           \
   }                                                                            \
                                                                                \
-  bool ento::shouldRegister##CHECKER_NAME(CheckerManager const &) {            \
+  bool clang::ento::shouldRegister##CHECKER_NAME(CheckerManager const &) {     \
     return true;                                                               \
   }
 
