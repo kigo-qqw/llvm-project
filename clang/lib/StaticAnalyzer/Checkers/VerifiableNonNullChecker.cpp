@@ -23,7 +23,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState_Fwd.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -389,7 +388,7 @@ void VerifiableNonNullChecker::checkPreCall(const CallEvent &Call,
 
     auto &&IsParamNonNullable = isNonNullableType(ParamPtr);
     auto &&IsExprTypeNonNullable =
-        isNonNullableType(ArgPtr); // TODO : special check that ignore casts?
+        isNonNullableType(ArgPtr); // TODO: special check that ignore casts?
 
     // llvm::dbgs() << "SValIsNull.isConstrainedTrue() && !IsExprTypeNonNullable
     // "
