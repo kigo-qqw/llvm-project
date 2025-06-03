@@ -365,26 +365,42 @@ def NullableReturnedFromNonnullChecker : Checker<"NullableReturnedFromNonnull">,
 } // end "nullability"
 
 let ParentPackage = VerifiableNonNull in {
+// def VerifiableNonNullChecker : Checker<"VerifiableNonNullChecker">, HelpText<"TODO">, Documentation<NotDocumented>, Hidden;
+// def NullableDereference : Checker<"NullableDereference">, HelpText<"TODO">, Dependencies<[VerifiableNonNullChecker]>, Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
+// def NullptrPassedToNonnull : Checker<"NullptrPassedToNonnull">, HelpText<"TODO">, Dependencies<[VerifiableNonNullChecker]>, Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
+// def NullablePassedToNonnull : Checker<"NullablePassedToNonnull">, HelpText<"TODO">, Dependencies<[VerifiableNonNullChecker]>, Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
+
 def VerifiableNonNullChecker : Checker<"VerifiableNonNullChecker">,
   HelpText<"TODO">,
   Documentation<NotDocumented>,
   Hidden;
 
-def NullableDereference : Checker<"NullableDereference">,
+def NullptrPassedToNonnullChecker : Checker<"NullptrPassedToNonnull">,
   HelpText<"TODO">,
   Dependencies<[VerifiableNonNullChecker]>,
   Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
 
-def NullptrPassedToNonnull : Checker<"NullptrPassedToNonnull">,
+def NullptrReturnedFromNonnullChecker : Checker<"NullptrReturnedFromNonnull">,
   HelpText<"TODO">,
   Dependencies<[VerifiableNonNullChecker]>,
   Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
 
-def NullablePassedToNonnull : Checker<"NullablePassedToNonnull">,
+def NullablePointerDereferencedChecker : Checker<"NullablePointerDereferenced">,
   HelpText<"TODO">,
   Dependencies<[VerifiableNonNullChecker]>,
   Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
-}
+
+def NullablePointerPassedToNonnullChecker : Checker<"NullablePointerPassedToNonnull">,
+  HelpText<"TODO">,
+  Dependencies<[VerifiableNonNullChecker]>,
+  Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
+
+def NullablePointerReturnedFromNonnullChecker : Checker<"NullablePointerReturnedFromNonnull">,
+  HelpText<"TODO">,
+  Dependencies<[VerifiableNonNullChecker]>,
+  Documentation<NotDocumented>; // TODO: add docs and change to `HasDocumentation`
+
+} // end "verifiable_nonnull"
 
 //===----------------------------------------------------------------------===//
 // APIModeling.

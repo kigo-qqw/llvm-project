@@ -1,0 +1,201 @@
+clang/test/APINotes/nullability.c:  float *fp = global_int; // expected-warning{{incompatible pointer types initializing 'float *' with an expression of type 'int * _Nonnull'}}
+clang/test/AST/ast-dump-attr-type.cpp:int * _Nonnull x;
+clang/test/AST/ast-dump-attr-type.cpp:// CHECK-NEXT:     |-DeclRefExpr 0x{{[^ ]*}} <col:21> 'int * _Nonnull':'int *' lvalue Var 0x{{[^ ]*}} 'x' 'int * _Nonnull':'int *' non_odr_use_unevaluated
+clang/test/AST/ast-dump-attr-type.cpp:// CHECK-NEXT:    `-AttributedType 0x{{[^ ]*}} 'int * _Nonnull' sugar
+clang/test/Analysis/Inputs/system-header-simulator-for-nullability.h:+ (NSString * _Nonnull) generateString;
+clang/test/Analysis/Inputs/system-header-simulator-for-nullability.h:NSString* _Nonnull  getString();
+clang/test/Analysis/Inputs/system-header-simulator-for-nullability.h:- (NSString * _Nonnull) getString;
+clang/test/Index/complete-stmt.c:// CHECK-STMT: NotImplemented:{TypedText _Nonnull} (50)
+clang/test/Index/nullability.c:int * _Nonnull b;
+clang/test/Index/nullability.c:// CHECK: VarDecl=b:2:16 [type=int * _Nonnull] [typekind=Attributed] [nullability=nonnull] [canonicaltype=int *] [canonicaltypekind=Pointer] [modifiedtype=int *] [modifiedtypekind=Pointer] [isPOD=1]
+clang/test/Parser/nullability.c:_Nonnull int *ptr; // expected-warning{{type nullability specifier '_Nonnull' is a Clang extension}}
+clang/test/Parser/nullability.c:_Nonnull int *ptr2; // no-warning
+clang/test/Preprocessor/pragma_assume_nonnull.c:int foo(int * _Nonnull ip) { return *ip; }
+clang/test/Preprocessor/predefined-nullability.c:// CHECK-DARWIN: #define __nonnull _Nonnull
+clang/test/Sema/non-null-warning.c:int * _Nullable foo(int * _Nonnull x);
+clang/test/Sema/non-null-warning.c:int *_Nonnull ret_nonnull(void);
+clang/test/Sema/non-null-warning.c:int * _Nullable foo1(int * _Nonnull x); // expected-note {{previous declaration is here}}
+clang/test/Sema/non-null-warning.c:int *foo1(int * _Nullable x) { // expected-warning {{nullability specifier '_Nullable' conflicts with existing specifier '_Nonnull'}}
+clang/test/Sema/non-null-warning.c:int * _Nullable foo2(int * _Nonnull x);
+clang/test/Sema/non-null-warning.c:int *foo2(int * _Nonnull x) {
+clang/test/Sema/non-null-warning.c:int *foo3(int * _Nonnull x) { // expected-warning {{nullability specifier '_Nonnull' conflicts with existing specifier '_Nullable'}}
+clang/test/Sema/non-null-warning.c:int foo4(int * _Nonnull x, int * y) {
+clang/test/Sema/nullability.c:// expected-note@+2{{'_Nonnull' specified here}}
+clang/test/Sema/nullability.c:typedef int * _Nonnull nonnull_int_ptr;
+clang/test/Sema/nullability.c:typedef int * _Nonnull _Nonnull redundant_1; // expected-warning{{duplicate nullability specifier '_Nonnull'}}
+clang/test/Sema/nullability.c:typedef int * _Nonnull _Nullable conflicting_1; // expected-error{{nullability specifier '_Nullable' conflicts with existing specifier '_Nonnull'}}
+clang/test/Sema/nullability.c:typedef int * _Null_unspecified _Nonnull conflicting_2; // expected-error{{nullability specifier '_Nonnull' conflicts with existing specifier '_Null_unspecified'}}
+clang/test/Sema/nullability.c:typedef nonnull_int_ptr _Nonnull redundant_okay_1;
+clang/test/Sema/nullability.c:typedef nonnull_int_ptr _Nullable conflicting_2; // expected-error{{nullability specifier '_Nullable' conflicts with existing specifier '_Nonnull'}}
+clang/test/Sema/nullability.c:typedef nonnull_int_ptr_typedef _Nullable conflicting_2; // expected-error{{nullability specifier '_Nullable' conflicts with existing specifier '_Nonnull'}}
+clang/test/Sema/nullability.c:typedef nonnull_int_ptr_typedef_typedef _Null_unspecified conflicting_3; // expected-error{{nullability specifier '_Null_unspecified' conflicts with existing specifier '_Nonnull'}}
+clang/test/Sema/nullability.c:typedef int (* _Nonnull function_pointer_type_1)(int, int);
+clang/test/Sema/nullability.c:typedef int (^ _Nonnull block_type_1)(int, int);
+clang/test/Sema/nullability.c:typedef int _Nonnull int_type_1; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int'}}
+clang/test/Sema/nullability.c:typedef _Nonnull int * nonnull_int_ptr_2;
+clang/test/Sema/nullability.c:typedef _Nonnull int (* function_pointer_type_2)(int, int);
+clang/test/Sema/nullability.c:typedef _Nonnull int (^ block_type_2)(int, int);
+clang/test/Sema/nullability.c:typedef _Nonnull int * * _Nullable nonnull_int_ptr_ptr_1;
+clang/test/Sema/nullability.c:typedef _Nonnull int *(^ block_type_3)(int, int);
+clang/test/Sema/nullability.c:typedef _Nonnull int *(* function_pointer_type_3)(int, int);
+clang/test/Sema/nullability.c:typedef _Nonnull int_ptr (^ block_type_4)(int, int);
+clang/test/Sema/nullability.c:typedef _Nonnull int_ptr (* function_pointer_type_4)(int, int);
+clang/test/Sema/nullability.c:typedef void (* function_pointer_type_5)(int_ptr _Nonnull);
+clang/test/Sema/nullability.c:void acceptFunctionPtr(_Nonnull int *(*)(void));
+clang/test/Sema/nullability.c:void acceptBlockPtr(_Nonnull int *(^)(void));
+clang/test/Sema/nullability.c:  fp = (function_pointer_type_3)0; // expected-warning{{from 'function_pointer_type_3' (aka 'int * _Nonnull (*)(int, int)')}}
+clang/test/Sema/nullability.c:  fp = (block_type_3)0; // expected-error{{from incompatible type 'block_type_3' (aka 'int * _Nonnull (^)(int, int)')}}
+clang/test/Sema/nullability.c:  fp = (function_pointer_type_4)0; // expected-warning{{from 'function_pointer_type_4' (aka 'int * _Nonnull (*)(int, int)')}}
+clang/test/Sema/nullability.c:  fp = (function_pointer_type_5)0; // expected-warning{{from 'function_pointer_type_5' (aka 'void (*)(int * _Nonnull)')}}
+clang/test/Sema/nullability.c:  fp = (block_type_4)0; // expected-error{{from incompatible type 'block_type_4' (aka 'int_ptr  _Nonnull (^)(int, int)')}}
+clang/test/Sema/nullability.c:typedef _Nonnull int * _Nullable *  conflict_int_ptr_ptr_2; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int'}}
+clang/test/Sema/nullability.c:typedef int * _Nonnull ambiguous_int_ptr;
+clang/test/Sema/nullability.c:int * _Nonnull ip_1 = &f; // expected-warning{{incompatible pointer types initializing 'int * _Nonnull' with an expression of type 'float *'}}
+clang/test/Sema/nullability.c:  int * _Nonnull iptr;
+clang/test/Sema/nullability.c:  float *fptr = iptr; // expected-warning{{incompatible pointer types initializing 'float *' with an expression of type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  int * * _Nonnull iptrptr;
+clang/test/Sema/nullability.c:  float **fptrptr = iptrptr; // expected-warning{{incompatible pointer types initializing 'float **' with an expression of type 'int ** _Nonnull'}}
+clang/test/Sema/nullability.c:  int * _Nullable * _Nonnull iptrptr2;
+clang/test/Sema/nullability.c:  float * *fptrptr2 = iptrptr2; // expected-warning{{incompatible pointer types initializing 'float **' with an expression of type 'int * _Nullable * _Nonnull'}}
+clang/test/Sema/nullability.c:// Check passing null to a _Nonnull argument.
+clang/test/Sema/nullability.c:void accepts_nonnull_1(_Nonnull int *ptr);
+clang/test/Sema/nullability.c:void (*accepts_nonnull_2)(_Nonnull int *ptr);
+clang/test/Sema/nullability.c:void (^accepts_nonnull_3)(_Nonnull int *ptr);
+clang/test/Sema/nullability.c:// Check returning nil from a _Nonnull-returning function.
+clang/test/Sema/nullability.c:_Nonnull int *returns_int_ptr(int x) {
+clang/test/Sema/nullability.c:  return (_Nonnull int *)0;
+clang/test/Sema/nullability.c:  _Nonnull int *b = ptr; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  b = ptr; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  __auto_type _Nonnull c = ptr; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nullable _Nonnull'}}
+clang/test/Sema/nullability.c:  accepts_nonnull_1(ptr); // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  int * _Nonnull p;
+clang/test/Sema/nullability.c:  int * _Nonnull nonnullP;
+clang/test/Sema/nullability.c:  p = c ? nonnullP : nullableP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = c ? nullableP : nonnullP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = c ? nullableP : nullableP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = c ? nullableP : unspecifiedP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = c ? nullableP : noneP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = c ? unspecifiedP : nullableP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = c ? noneP : nullableP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  typedef IntP _Nonnull NonnullIntP0;
+clang/test/Sema/nullability.c:  typedef NonnullIntP0 _Nonnull NonnullIntP1;
+clang/test/Sema/nullability.c:  p = c ? nonnullP2 : nullableP2; // expected-warning{{implicit conversion from nullable pointer 'IntP _Nullable' (aka 'int *') to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = c ? nullableP2 : nonnullP2; // expected-warning{{implicit conversion from nullable pointer 'IntP _Nullable' (aka 'int *') to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = c ? nullableP2 : nullableP2; // expected-warning{{implicit conversion from nullable pointer 'NullableIntP1' (aka 'int *') to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  int * _Nonnull p;
+clang/test/Sema/nullability.c:  int * _Nonnull nonnullP;
+clang/test/Sema/nullability.c:  p = nullableP ?: nullableP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = unspecifiedP ?: nullableP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:  p = noneP ?: nullableP; // expected-warning{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+clang/test/Sema/nullability.c:void arrays(int ints[_Nonnull],
+clang/test/Sema/nullability.c:            void * _Null_unspecified * _Nonnull nestedPtrs2[_Nullable],
+clang/test/Sema/nullability.c:            int fixedSize[_Nonnull 2],
+clang/test/Sema/nullability.c:            int staticSize[_Nonnull static 2],
+clang/test/Sema/nullability.c:            int staticSize2[static _Nonnull 2],
+clang/test/Sema/nullability.c:            int starSize[_Nonnull *],
+clang/test/Sema/nullability.c:            int vla[_Nonnull GLOBAL_LENGTH],
+clang/test/Sema/nullability.c:  int produceAnErrorMessage = arrays; // expected-error {{incompatible pointer to integer conversion initializing 'int' with an expression of type 'void (int * _Nonnull, void ** _Nullable, void *** _Nullable, void * _Null_unspecified * _Nonnull * _Nullable, int * _Nonnull, int * _Nonnull, int * _Nonnull, int * _Nonnull, int * _Nonnull, void ** _Nullable)'}}
+clang/test/Sema/nullability.c:void nestedArrays(int x[5][_Nonnull 1]) {} // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int[1]'}}
+clang/test/Sema/nullability.c:void nestedArrays2(int x[5][_Nonnull 1][2]) {} // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int[1][2]'}}
+clang/test/Sema/nullability.c:void nestedArraysOK(int x[_Nonnull 5][1]) {} // ok
+clang/test/Sema/nullability.c:void nullabilityOnBase(_Nonnull int x[1], // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int'}}
+clang/test/Sema/nullability.c:                       int _Nonnull y[1]); // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int'}}
+clang/test/Sema/nullability.c:typedef int BAD_INTS[_Nonnull 4]; // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int[4]'}}
+clang/test/Sema/nullability.c:void typedefTest(INTS _Nonnull x,
+clang/test/Sema/nullability.c:                 _Nonnull INTS xx,
+clang/test/Sema/nullability.c:                 INTS _Nonnull y[2], // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'INTS' (aka 'int[4]')}}
+clang/test/Sema/nullability.c:                 INTS z[_Nonnull 2]);
+clang/test/Sema/nullability.c:INTS _Nonnull x; // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'INTS' (aka 'int[4]')}}
+clang/test/Sema/nullability.c:_Nonnull INTS x; // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'INTS' (aka 'int[4]')}}
+clang/test/Sema/nullability.c:  void (^simple)(int [_Nonnull 2]) = ^(int x[_Nonnull 2]) {};
+clang/test/Sema/nullability.c:  void (^nested)(void *_Nullable x[_Nonnull 2]) = ^(void *_Nullable x[_Nonnull 2]) {};
+clang/test/Sema/nullability.c:  void (^nestedBad)(int x[2][_Nonnull 2]) = // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int[2]'}}
+clang/test/Sema/nullability.c:    ^(int x[2][_Nonnull 2]) {}; // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int[2]'}}
+clang/test/Sema/nullability.c:  void (^withTypedef)(INTS _Nonnull) = ^(INTS _Nonnull x) {};
+clang/test/Sema/nullability.c:  void (^withTypedefBad)(INTS _Nonnull [2]) = // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'INTS' (aka 'int[4]')}}
+clang/test/Sema/nullability.c:      ^(INTS _Nonnull x[2]) {}; // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'INTS' (aka 'int[4]')}}
+clang/test/SemaCXX/Inputs/nullability-completeness.h:  int *_Nonnull x;
+clang/test/SemaCXX/cxx2b-deducing-this.cpp:    void l(this auto) _Nonnull; // expected-error{{explicit object member function cannot have '' qualifie}}
+clang/test/SemaCXX/nullability-declspec.cpp:_Nonnull int (^bp1)(int); // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int'; did you mean to apply the specifier to the block pointer?}}
+clang/test/SemaCXX/nullability-declspec.cpp:_Nonnull int X::*pmd1; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int'; did you mean to apply the specifier to the member pointer?}}
+clang/test/SemaCXX/nullability-declspec.cpp:_Nonnull int (X::*pmf1)(int); // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int'; did you mean to apply the specifier to the member function pointer?}}
+clang/test/SemaCXX/nullability.cpp:typedef int (X::* _Nonnull member_function_type_1)(int);
+clang/test/SemaCXX/nullability.cpp:typedef int X::* _Nonnull member_data_type_1;
+clang/test/SemaCXX/nullability.cpp:typedef nullptr_t _Nonnull nonnull_nullptr_t; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'nullptr_t' (aka 'std::nullptr_t')}}
+clang/test/SemaCXX/nullability.cpp:typedef _Nonnull int (X::* member_function_type_2)(int);
+clang/test/SemaCXX/nullability.cpp:typedef int (X::* _Nonnull member_function_type_3)(int);
+clang/test/SemaCXX/nullability.cpp:typedef _Nonnull int X::* member_data_type_2;
+clang/test/SemaCXX/nullability.cpp:  typedef _Nonnull T type; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int'}}
+clang/test/SemaCXX/nullability.cpp:  // expected-error@-1{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'std::nullptr_t'}}
+clang/test/SemaCXX/nullability.cpp:  // expected-error@-2{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'NotPtr'}}
+clang/test/SemaCXX/nullability.cpp:  typedef _Nonnull AddNonNull<T> invalid1; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'AddNonNull<T>'}}
+clang/test/SemaCXX/nullability.cpp:  typedef _Nonnull AddNonNull2 invalid2; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'AddNonNull2<T>'}}
+clang/test/SemaCXX/nullability.cpp:  typedef _Nonnull AddNonNull2<T> invalid3; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'AddNonNull2<T>'}}
+clang/test/SemaCXX/nullability.cpp:  typedef _Nonnull typename AddNonNull<T>::type okay1;
+clang/test/SemaCXX/nullability.cpp:  typedef _Nonnull AddNonNull<T> (*invalid4); // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'AddNonNull<T>'}}
+clang/test/SemaCXX/nullability.cpp:// Check passing null to a _Nonnull argument.
+clang/test/SemaCXX/nullability.cpp:void (*accepts_nonnull_1)(_Nonnull int *ptr);
+clang/test/SemaCXX/nullability.cpp:void (*& accepts_nonnull_2)(_Nonnull int *ptr) = accepts_nonnull_1;
+clang/test/SemaCXX/nullability.cpp:void (X::* accepts_nonnull_3)(_Nonnull int *ptr);
+clang/test/SemaCXX/nullability.cpp:void accepts_nonnull_4(_Nonnull int *ptr);
+clang/test/SemaCXX/nullability.cpp:void (&accepts_nonnull_5)(_Nonnull int *ptr) = accepts_nonnull_4;
+clang/test/SemaCXX/nullability.cpp:void accepts_nonnull_6(SmartPtr _Nonnull);
+clang/test/SemaCXX/nullability.cpp:template<void FP(_Nonnull int*)>
+clang/test/SemaCXX/nullability.cpp:void TakeNonnull(void *_Nonnull);
+clang/test/SemaCXX/nullability.cpp:void TakeSmartNonnull(SmartPtr _Nonnull);
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull p(nullable); // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull p2{nullable}; // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull p3 = {nullable}; // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull p4 = nullable; // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull nonnull;
+clang/test/SemaCXX/nullability.cpp:  nonnull = nullable; // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  nonnull = {nullable}; // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  TakeNonnull(nullable); //expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull}}
+clang/test/SemaCXX/nullability.cpp:  nonnull = (void *_Nonnull)nullable; // explicit cast OK
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s(s_nullable); // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s2{s_nullable}; // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s3 = {s_nullable}; // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s4 = s_nullable; // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s_nonnull;
+clang/test/SemaCXX/nullability.cpp:  s_nonnull = s_nullable; // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  TakeSmartNonnull(s_nullable); //expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull}}
+clang/test/SemaCXX/nullability.cpp:  s_nonnull = (SmartPtr _Nonnull)s_nullable; // explicit cast OK
+clang/test/SemaCXX/nullability.cpp:  s_nonnull = static_cast<SmartPtr _Nonnull>(s_nullable); // explicit cast OK
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull p(ReturnNullable()); // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull p2{ReturnNullable()}; // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull p3 = {ReturnNullable()}; // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull p4 = ReturnNullable(); // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  void *_Nonnull nonnull;
+clang/test/SemaCXX/nullability.cpp:  nonnull = ReturnNullable(); // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  nonnull = {ReturnNullable()}; // expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  TakeNonnull(ReturnNullable()); //expected-warning{{implicit conversion from nullable pointer 'void * _Nullable' to non-nullable pointer type 'void * _Nonnull}}
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s(ReturnSmartNullable()); // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s2{ReturnSmartNullable()}; // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s3 = {ReturnSmartNullable()}; // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s4 = ReturnSmartNullable(); // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  SmartPtr _Nonnull s_nonnull;
+clang/test/SemaCXX/nullability.cpp:  s_nonnull = ReturnSmartNullable(); // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  TakeSmartNonnull(ReturnSmartNullable()); // expected-warning{{implicit conversion from nullable pointer 'SmartPtr _Nullable' to non-nullable pointer type 'SmartPtr _Nonnull'}}
+clang/test/SemaCXX/nullability.cpp:  Base * _Nonnull p;
+clang/test/SemaCXX/nullability.cpp:  Base * _Nonnull nonnullB;
+clang/test/SemaCXX/nullability.cpp:  Derived * _Nonnull nonnullD;
+clang/test/SemaCXX/nullability.cpp:  p = c ? nonnullB : nullableD; // expected-warning{{implicit conversion from nullable pointer 'Base * _Nullable' to non-nullable pointer type 'Base * _Nonnull}}
+clang/test/SemaCXX/nullability.cpp:  p = c ? nullableB : nonnullD; // expected-warning{{implicit conversion from nullable pointer 'Base * _Nullable' to non-nullable pointer type 'Base * _Nonnull}}
+clang/test/SemaCXX/nullability.cpp:  p = c ? nullableB : nullableD; // expected-warning{{implicit conversion from nullable pointer 'Base * _Nullable' to non-nullable pointer type 'Base * _Nonnull}}
+clang/test/SemaCXX/nullability.cpp:  p = c ? nonnullD : nullableB; // expected-warning{{implicit conversion from nullable pointer 'Base * _Nullable' to non-nullable pointer type 'Base * _Nonnull}}
+clang/test/SemaCXX/nullability.cpp:  p = c ? nullableD : nonnullB; // expected-warning{{implicit conversion from nullable pointer 'Base * _Nullable' to non-nullable pointer type 'Base * _Nonnull}}
+clang/test/SemaCXX/nullability.cpp:  p = c ? nullableD : nullableB; // expected-warning{{implicit conversion from nullable pointer 'Base * _Nullable' to non-nullable pointer type 'Base * _Nonnull}}
+clang/test/SemaCXX/nullability.cpp:  auto simple = [](int [_Nonnull 2]) {};
+clang/test/SemaCXX/nullability.cpp:  auto nested = [](void *_Nullable [_Nonnull 2]) {};
+clang/test/SemaCXX/nullability.cpp:  auto nestedBad = [](int [2][_Nonnull 2]) {}; // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'int[2]'}}
+clang/test/SemaCXX/nullability.cpp:  auto withTypedef = [](INTS _Nonnull) {};
+clang/test/SemaCXX/nullability.cpp:  auto withTypedefBad = [](INTS _Nonnull[2]) {}; // expected-error {{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'INTS' (aka 'int[4]')}}
+clang/test/SemaCXX/nullability_redecl.cpp:using Foo1 = Foo _Nonnull; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'Foo'}}
+clang/test/SemaCXX/nullability_redecl.cpp:using Foo2 = Foo _Nonnull;
+clang/test/SemaCXX/nullability_redecl.cpp:using Foo3 = Foo _Nonnull;
+clang/test/SemaCXX/nullability_redecl.cpp:using Bar1 = Bar<int> _Nonnull; // expected-error{{nullability specifier '_Nonnull' cannot be applied to non-pointer type 'Bar<int>'}}
+clang/test/SemaCXX/nullability_redecl.cpp:using Bar2 = Bar<int> _Nonnull;
+clang/test/SemaCXX/nullability_redecl.cpp:using Bar3 = Bar<int> _Nonnull;
+clang/test/SemaCXX/nullability_redecl.cpp:  using UP1 = unique_ptr<int> _Nonnull;
+clang/test/SemaCXX/nullability_redecl.cpp:  using UP2 = unique_ptr<int> _Nonnull;
+clang/test/SemaCXX/nullability_redecl.cpp:  using UP3 = unique_ptr<int> _Nonnull;

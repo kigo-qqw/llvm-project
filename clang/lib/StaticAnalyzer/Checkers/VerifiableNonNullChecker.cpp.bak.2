@@ -24,8 +24,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Iterator.h"
-
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 
 #include "clang/Analysis/AnyCall.h"
@@ -59,21 +57,6 @@ const char *getNullabilityString(Nullability Nullab) {
   return "";
 }
 
-static bool isPointerNonnullable(const QualType T) {
-llvm::dbgs() << "T = " << T <<'\n';
-
-  if (auto &&PT = T->getAs<PointerType>()) {
-    return T->hasAttr(attr::VerifiableNonNull);
-  }
-  return false;
-
-  // const auto *AttrType = T->getAs<AttributedType>();
-  //
-  // llvm::dbgs() << "AttrType = " << AttrType << '\n';
-  //
-  // return AttrType && AttrType->getAttrKind() == attr::VerifiableNonNull;
-}
-
 // These enums are used as an index to ErrorMessages array.
 enum class ErrorKind : int {
   NullptrAssignedToNonnull,
@@ -86,13 +69,11 @@ enum class ErrorKind : int {
 };
 
 class VerifiableNonNullChecker final
-    : public Checker<
-          check::Bind, check::PreCall, check::PreStmt<ReturnStmt>,
-          check::PostCall, check::PostStmt<ExplicitCastExpr>,
-          check::DeadSymbols, eval::Assume, check::Location,
-          check::Event<ImplicitNullDerefEvent>, check::BeginFunction,
-          check::PreStmt<UnaryOperator>, check::PreStmt<BinaryOperator>,
-          check::PreStmt<ArraySubscriptExpr>, check::PreStmt<MemberExpr>> {
+    : public Checker<check::Bind, check::PreCall, check::PreStmt<ReturnStmt>,
+                     check::PostCall, check::PostStmt<ExplicitCastExpr>,
+                     check::DeadSymbols, eval::Assume, check::Location,
+                     check::Event<ImplicitNullDerefEvent>,
+                     check::BeginFunction> {
 
 public:
   // If true, the checker will not diagnose nullabilility issues for calls
@@ -115,65 +96,6 @@ public:
   void checkBeginFunction(CheckerContext &Ctx) const;
   ProgramStateRef evalAssume(ProgramStateRef State, SVal Cond,
                              bool Assumption) const;
-
-  //   void checkPreStmt(const UnaryOperator *UO, CheckerContext &C) const;
-  // void checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const;
-  //   void checkPreStmt(const ArraySubscriptExpr *ASE, CheckerContext &C)
-  //   const; void checkPreStmt(const MemberExpr *ME, CheckerContext &C) const;
-
-  void checkPreStmt(const UnaryOperator *UO, CheckerContext &C) const {
-    if (isa<CXXThisExpr>(UO->getSubExpr()))
-      return;
-    UnaryOperatorKind OK = UO->getOpcode();
-    if (clang::ento::iterator::isAccessOperator(OK)) {
-      verifyAccess(C, UO->getSubExpr());
-    }
-  }
-
-  void checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const {
-    BinaryOperatorKind OK = BO->getOpcode();
-    if (clang::ento::iterator::isAccessOperator(OK)) {
-      verifyAccess(C, BO->getLHS());
-    }
-  }
-
-  void checkPreStmt(const ArraySubscriptExpr *ASE, CheckerContext &C) const {
-    verifyAccess(C, ASE->getLHS());
-  }
-
-  void checkPreStmt(const MemberExpr *ME, CheckerContext &C) const {
-    if (!ME->isArrow() || ME->isImplicitAccess())
-      return;
-    verifyAccess(C, ME->getBase());
-  }
-
-  void verifyAccess(CheckerContext &C, const Expr *E) const {
-    if (isPointerNonnullable(E->getType()))
-      return;
-    const ProgramStateRef State = C.getState();
-    const SVal Val = State->getSVal(E, C.getLocationContext());
-
-    const auto DefOrUnknown = Val.getAs<DefinedOrUnknownSVal>();
-    if (!DefOrUnknown)
-      return;
-    if (State->isNonNull(*DefOrUnknown).isConstrainedTrue())
-      return;
-
-    static CheckerProgramPointTag Tag(this, "NullablePointerDereferenced");
-    ExplodedNode *N = C.generateErrorNode(State, &Tag);
-    if (!N)
-      return;
-
-    const MemRegion *Region = getTrackRegion(*DefOrUnknown);
-    if (!Region)
-      return;
-
-    reportBug("Nullable pointer is dereferenced",
-              ErrorKind::NullablePointerDereferenced,
-              CK_NullablePointerDereferenced, N, Region, C.getBugReporter());
-
-    llvm::dbgs() << "REPORT BUG" << '\n';
-  }
 
   void printState(raw_ostream &Out, ProgramStateRef State, const char *NL,
                   const char *Sep) const override;
@@ -425,6 +347,19 @@ static Nullability getNullabilityFromAttributes(QualType T) {
   if (AttrType->getAttrKind() == attr::VerifiableNonNull)
     return Nullability::Nonnull;
   return Nullability::Nullable;
+}
+
+static bool isPointerNonnullable(const QualType T) {
+  const auto *AttrType = T->getAs<AttributedType>();
+
+  return AttrType && AttrType->getAttrKind() == attr::VerifiableNonNull;
+#if 0
+  if (!AttrType)
+    return false;
+  if (AttrType->getAttrKind() == attr::VerifiableNonNull)
+    return true;
+  return false;
+#endif
 }
 
 /// Returns true when the value stored at the given location has been
