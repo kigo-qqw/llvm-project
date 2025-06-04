@@ -1,29 +1,3 @@
-//===-- NullabilityChecker.cpp - Nullability checker ----------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This checker tries to find nullability violations. There are several kinds of
-// possible violations:
-// * Null pointer is passed to a pointer which has a _Nonnull type.
-// * Null pointer is returned from a function which has a _Nonnull return type.
-// * Nullable pointer is passed to a pointer which has a _Nonnull type.
-// * Nullable pointer is returned from a function which has a _Nonnull return
-//   type.
-// * Nullable pointer is dereferenced.
-//
-// This checker propagates the nullability information of the pointers and looks
-// for the patterns that are described above. Explicit casts are trusted and are
-// considered a way to suppress false positives for this checker. The other way
-// to suppress warnings would be to add asserts or guarding if statements to the
-// code. In addition to the nullability propagation this checker also uses some
-// heuristics to suppress potential false positives.
-//
-//===----------------------------------------------------------------------===//
-
 #include "Iterator.h"
 
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
@@ -44,37 +18,25 @@ using namespace clang;
 using namespace ento;
 
 namespace {
-const char *getNullabilityString(Nullability Nullab) {
+const char *getNullabilityString(const Nullability Nullab) {
   switch (Nullab) {
-  case Nullability::Contradicted:
-    return "contradicted";
   case Nullability::Nullable:
     return "nullable";
-  case Nullability::Unspecified:
-    return "unspecified";
   case Nullability::Nonnull:
     return "nonnull";
+  default:
+    llvm_unreachable("Unexpected enumeration.");
   }
-  llvm_unreachable("Unexpected enumeration.");
   return "";
 }
 
 static bool isPointerNonnullable(const QualType T) {
-llvm::dbgs() << "T = " << T <<'\n';
-
   if (auto &&PT = T->getAs<PointerType>()) {
     return T->hasAttr(attr::VerifiableNonNull);
   }
   return false;
-
-  // const auto *AttrType = T->getAs<AttributedType>();
-  //
-  // llvm::dbgs() << "AttrType = " << AttrType << '\n';
-  //
-  // return AttrType && AttrType->getAttrKind() == attr::VerifiableNonNull;
 }
 
-// These enums are used as an index to ErrorMessages array.
 enum class ErrorKind : int {
   NullptrAssignedToNonnull,
   NullptrPassedToNonnull,
@@ -95,12 +57,6 @@ class VerifiableNonNullChecker final
           check::PreStmt<ArraySubscriptExpr>, check::PreStmt<MemberExpr>> {
 
 public:
-  // If true, the checker will not diagnose nullabilility issues for calls
-  // to system headers. This option is motivated by the observation that large
-  // projects may have many nullability warnings. These projects may
-  // find warnings about nullability annotations that they have explicitly
-  // added themselves higher priority to fix than warnings on calls to system
-  // libraries.
   bool NoDiagnoseCallsToSystemHeaders = false;
 
   void checkBind(SVal L, SVal V, const Stmt *S, CheckerContext &C) const;
@@ -115,65 +71,11 @@ public:
   void checkBeginFunction(CheckerContext &Ctx) const;
   ProgramStateRef evalAssume(ProgramStateRef State, SVal Cond,
                              bool Assumption) const;
-
-  //   void checkPreStmt(const UnaryOperator *UO, CheckerContext &C) const;
-  // void checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const;
-  //   void checkPreStmt(const ArraySubscriptExpr *ASE, CheckerContext &C)
-  //   const; void checkPreStmt(const MemberExpr *ME, CheckerContext &C) const;
-
-  void checkPreStmt(const UnaryOperator *UO, CheckerContext &C) const {
-    if (isa<CXXThisExpr>(UO->getSubExpr()))
-      return;
-    UnaryOperatorKind OK = UO->getOpcode();
-    if (clang::ento::iterator::isAccessOperator(OK)) {
-      verifyAccess(C, UO->getSubExpr());
-    }
-  }
-
-  void checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const {
-    BinaryOperatorKind OK = BO->getOpcode();
-    if (clang::ento::iterator::isAccessOperator(OK)) {
-      verifyAccess(C, BO->getLHS());
-    }
-  }
-
-  void checkPreStmt(const ArraySubscriptExpr *ASE, CheckerContext &C) const {
-    verifyAccess(C, ASE->getLHS());
-  }
-
-  void checkPreStmt(const MemberExpr *ME, CheckerContext &C) const {
-    if (!ME->isArrow() || ME->isImplicitAccess())
-      return;
-    verifyAccess(C, ME->getBase());
-  }
-
-  void verifyAccess(CheckerContext &C, const Expr *E) const {
-    if (isPointerNonnullable(E->getType()))
-      return;
-    const ProgramStateRef State = C.getState();
-    const SVal Val = State->getSVal(E, C.getLocationContext());
-
-    const auto DefOrUnknown = Val.getAs<DefinedOrUnknownSVal>();
-    if (!DefOrUnknown)
-      return;
-    if (State->isNonNull(*DefOrUnknown).isConstrainedTrue())
-      return;
-
-    static CheckerProgramPointTag Tag(this, "NullablePointerDereferenced");
-    ExplodedNode *N = C.generateErrorNode(State, &Tag);
-    if (!N)
-      return;
-
-    const MemRegion *Region = getTrackRegion(*DefOrUnknown);
-    if (!Region)
-      return;
-
-    reportBug("Nullable pointer is dereferenced",
-              ErrorKind::NullablePointerDereferenced,
-              CK_NullablePointerDereferenced, N, Region, C.getBugReporter());
-
-    llvm::dbgs() << "REPORT BUG" << '\n';
-  }
+  void checkPreStmt(const UnaryOperator *UO, CheckerContext &C) const;
+  void checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const;
+  void checkPreStmt(const ArraySubscriptExpr *ASE, CheckerContext &C) const;
+  void checkPreStmt(const MemberExpr *ME, CheckerContext &C) const;
+  void verifyAccess(CheckerContext &C, const Expr *E) const;
 
   void printState(raw_ostream &Out, ProgramStateRef State, const char *NL,
                   const char *Sep) const override;
@@ -198,10 +100,6 @@ public:
     return BTs[Kind];
   }
 
-  // When set to false no nullability information will be tracked in
-  // NullabilityMap. It is possible to catch errors like passing a null pointer
-  // to a callee that expects nonnull argument without the information that is
-  // stored in the NullabilityMap. This is an optimization.
   bool NeedTracking = false;
 
 private:
@@ -224,11 +122,6 @@ private:
     const MemRegion *Region;
   };
 
-  /// When any of the nonnull arguments of the analyzed function is null, do not
-  /// report anything and turn off the check.
-  ///
-  /// When \p SuppressPath is set to true, no more bugs will be reported on this
-  /// path by this checker.
   void reportBugIfInvariantHolds(StringRef Msg, ErrorKind Error, CheckKind CK,
                                  ExplodedNode *N, const MemRegion *Region,
                                  CheckerContext &C,
@@ -255,13 +148,9 @@ private:
     BR.emitReport(std::move(R));
   }
 
-  /// If an SVal wraps a region that should be tracked, it will return a pointer
-  /// to the wrapped region. Otherwise it will return a nullptr.
   const SymbolicRegion *getTrackRegion(SVal Val,
                                        bool CheckSuperRegion = false) const;
 
-  /// Returns true if the call is diagnosable in the current analyzer
-  /// configuration.
   bool isDiagnosableCall(const CallEvent &Call) const {
     if (NoDiagnoseCallsToSystemHeaders && Call.isInSystemHeader())
       return false;
@@ -290,10 +179,6 @@ public:
 
 private:
   Nullability Nullab;
-  // Source is the expression which determined the nullability. For example in a
-  // message like [nullable nonnull_returning] has nullable nullability, because
-  // the receiver is nullable. Here the receiver will be the source of the
-  // nullability. This is useful information when the diagnostics are generated.
   const Stmt *Source;
 };
 
@@ -302,18 +187,11 @@ bool operator==(const NullabilityState Lhs, const NullabilityState Rhs) {
          Lhs.getNullabilitySource() == Rhs.getNullabilitySource();
 }
 
-// For the purpose of tracking historical property accesses, the key for lookup
-// is an object pointer (could be an instance or a class) paired with the unique
-// identifier for the property being invoked on that object.
 using ObjectPropPair = std::pair<const MemRegion *, const IdentifierInfo *>;
 
-// Metadata associated with the return value from a recorded property access.
 struct ConstrainedPropertyVal {
-  // This will reference the conjured return SVal for some call
-  // of the form [object property]
   DefinedOrUnknownSVal Value;
 
-  // If the SVal has been determined to be nonnull, that is recorded here
   bool isConstrainedNonnull;
 
   ConstrainedPropertyVal(const DefinedOrUnknownSVal SV)
@@ -398,7 +276,6 @@ VerifiableNonNullChecker::NullabilityBugVisitor::VisitNode(
       TrackedNullabPrev->getValue() == TrackedNullab->getValue())
     return nullptr;
 
-  // Retrieve the associated statement.
   const Stmt *S = TrackedNullab->getNullabilitySource();
   if (!S || S->getBeginLoc().isInvalid()) {
     S = N->getStmtForDiagnostics();
@@ -412,7 +289,6 @@ VerifiableNonNullChecker::NullabilityBugVisitor::VisitNode(
        getNullabilityString(TrackedNullab->getValue()) + "' is inferred")
           .str();
 
-  // Generate the extra diagnostic.
   PathDiagnosticLocation Pos(S, BRC.getSourceManager(),
                              N->getLocationContext());
   return std::make_shared<PathDiagnosticEventPiece>(Pos, InfoText, true);
@@ -427,14 +303,8 @@ static Nullability getNullabilityFromAttributes(QualType T) {
   return Nullability::Nullable;
 }
 
-/// Returns true when the value stored at the given location has been
-/// constrained to null after being passed through an object of nonnull type.
 static bool checkValueAtLValForInvariantViolation(const ProgramStateRef &State,
                                                   const SVal LV, QualType T) {
-#if 0
-  if (getNullabilityFromAttributes(T) != Nullability::Nonnull)
-    return false;
-#endif
   if (!isPointerNonnullable(T))
     return false;
 
@@ -442,12 +312,6 @@ static bool checkValueAtLValForInvariantViolation(const ProgramStateRef &State,
   if (!RegionVal)
     return false;
 
-  // If the value was constrained to null *after* it was passed through that
-  // location, it could not have been a concrete pointer *when* it was passed.
-  // In that case we would have handled the situation when the value was
-  // bound to that location, by emitting (or not emitting) a report.
-  // Therefore we are only interested in symbolic regions that can be either
-  // null or non-null depending on the value of their respective symbol.
   auto StoredVal = State->getSVal(*RegionVal).getAs<loc::MemRegionVal>();
   if (!StoredVal || !isa<SymbolicRegion>(StoredVal->getRegion()))
     return false;
@@ -553,7 +417,6 @@ void VerifiableNonNullChecker::reportBugIfInvariantHolds(
   reportBug(Msg, Error, CK, N, Region, C.getBugReporter(), ValueExpr);
 }
 
-/// Cleaning up the program state.
 void VerifiableNonNullChecker::checkDeadSymbols(SymbolReaper &SR,
                                                 CheckerContext &C) const {
   ProgramStateRef State = C.getState();
@@ -566,8 +429,6 @@ void VerifiableNonNullChecker::checkDeadSymbols(SymbolReaper &SR,
     }
   }
 
-  // When an object goes out of scope, we can free the history associated
-  // with any property accesses on that object
   PropertyAccessesMapTy PropertyAccesses = State->get<PropertyAccessesMap>();
   for (const ObjectPropPair PropKey :
        llvm::make_first_range(PropertyAccesses)) {
@@ -577,18 +438,11 @@ void VerifiableNonNullChecker::checkDeadSymbols(SymbolReaper &SR,
     }
   }
 
-  // When one of the nonnull arguments are constrained to be null, nullability
-  // preconditions are violated. It is not enough to check this only when we
-  // actually report an error, because at that time interesting symbols might be
-  // reaped.
   if (checkInvariantViolation(State, C.getPredecessor(), C))
     return;
   C.addTransition(State);
 }
 
-/// This callback triggers when a pointer is dereferenced and the analyzer does
-/// not know anything about the value of that pointer. When that pointer is
-/// nullable, this code emits a warning.
 void VerifiableNonNullChecker::checkEvent(
     const ImplicitNullDerefEvent &Event) const {
   if (Event.SinkNode->getState()->get<InvariantViolated>())
@@ -609,8 +463,6 @@ void VerifiableNonNullChecker::checkEvent(
   if (ChecksEnabled[CK_NullablePointerDereferenced] &&
       TrackedNullability->getValue() == Nullability::Nullable) {
     BugReporter &BR = *Event.BR;
-    // Do not suppress errors on defensive code paths, because dereferencing
-    // a nullable pointer is always an error.
     if (Event.IsDirectDereference)
       reportBug("Nullable pointer is dereferenced",
                 ErrorKind::NullablePointerDereferenced,
@@ -643,10 +495,6 @@ void VerifiableNonNullChecker::checkBeginFunction(CheckerContext &C) const {
 
     if (isPointerNonnullable(Param->getType()))
       continue;
-#if 0
-    if (RequiredNullability != Nullability::Nullable)
-      continue;
-#endif
     const VarRegion *ParamRegion = State->getRegion(Param, LCtx);
     const MemRegion *ParamPointeeRegion =
         State->getSVal(ParamRegion).getAsRegion();
@@ -662,13 +510,8 @@ void VerifiableNonNullChecker::checkBeginFunction(CheckerContext &C) const {
 void VerifiableNonNullChecker::checkLocation(SVal Location, bool IsLoad,
                                              const Stmt *S,
                                              CheckerContext &Context) const {
-  // We should care only about loads.
-  // The main idea is to add a constraint whenever we're loading a value from
-  // an annotated pointer type.
   if (!IsLoad)
     return;
-
-  // Annotations that we want to consider make sense only for types.
   const auto *Region =
       dyn_cast_or_null<TypedValueRegion>(Location.getAsRegion());
   if (!Region)
@@ -679,39 +522,17 @@ void VerifiableNonNullChecker::checkLocation(SVal Location, bool IsLoad,
   auto StoredVal = State->getSVal(Region).getAs<loc::MemRegionVal>();
   if (!StoredVal)
     return;
-
-#if 0
-  Nullability NullabilityOfTheLoadedValue =
-      getNullabilityFromAttributes(Region->getValueType());
-
-  if (NullabilityOfTheLoadedValue == Nullability::Nonnull) {
-    // It doesn't matter what we think about this particular pointer, it should
-    // be considered non-null as annotated by the developer.
-    if (ProgramStateRef NewState = State->assume(*StoredVal, true)) {
-      Context.addTransition(NewState);
-    }
-  }
-#endif
-
   if (isPointerNonnullable(Region->getValueType())) {
-    // It doesn't matter what we think about this particular pointer, it should
-    // be considered non-null as annotated by the developer.
     if (ProgramStateRef NewState = State->assume(*StoredVal, true)) {
       Context.addTransition(NewState);
     }
   }
 }
 
-/// Find the outermost subexpression of E that is not an implicit cast.
-/// This looks through the implicit casts to _Nonnull that ARC adds to
-/// return expressions of ObjC types when the return type of the function or
-/// method is non-null but the express is not.
 static const Expr *lookThroughImplicitCasts(const Expr *E) {
   return E->IgnoreImpCasts();
 }
 
-/// This method check when nullable pointer or null value is returned from a
-/// function that has nonnull return type.
 void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
                                             CheckerContext &C) const {
   const auto RetExpr = S->getRetValue();
@@ -736,10 +557,6 @@ void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
       C.getLocationContext()->getAnalysisDeclContext();
   const Decl *D = DeclCtxt->getDecl();
   if (auto *MD = dyn_cast<ObjCMethodDecl>(D)) {
-    // HACK: This is a big hammer to avoid warning when there are defensive
-    // nil checks in -init and -copy methods. We should add more sophisticated
-    // logic here to suppress on common defensive idioms but still
-    // warn when there is a likely problem.
     if (const ObjCMethodFamily Family = MD->getMethodFamily();
         OMF_init == Family || OMF_copy == Family || OMF_mutableCopy == Family)
       InSuppressedMethodFamily = true;
@@ -759,8 +576,6 @@ void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
       FunDecl && FunDecl->getAttr<ReturnsNonNullAttr>() &&
       (RequiredNullability == Nullability::Unspecified ||
        RequiredNullability == Nullability::Nullable)) {
-    // If a function is marked with the returns_nonnull attribute,
-    // the return value must be non-null.
     RequiredNullability = Nullability::Nonnull;
   }
 
@@ -788,8 +603,6 @@ void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
     return;
   }
 
-  // If null was returned from a non-null function, mark the nullability
-  // invariant as violated even if the diagnostic was suppressed.
   if (NullReturnedFromNonNull) {
     State = State->set<InvariantViolated>(true);
     C.addTransition(State);
@@ -829,8 +642,6 @@ void VerifiableNonNullChecker::checkPreStmt(const ReturnStmt *S,
   }
 }
 
-/// This callback warns when a nullable pointer or a null value is passed to a
-/// function that expects its argument to be nonnull.
 void VerifiableNonNullChecker::checkPreCall(const CallEvent &Call,
                                             CheckerContext &C) const {
   if (!Call.getDecl())
@@ -930,13 +741,11 @@ void VerifiableNonNullChecker::checkPreCall(const CallEvent &Call,
     C.addTransition(State);
 }
 
-/// Suppress the nullability warnings for some functions.
 void VerifiableNonNullChecker::checkPostCall(const CallEvent &Call,
                                              CheckerContext &C) const {
   const auto *Decl = Call.getDecl();
   if (!Decl)
     return;
-  // ObjC Messages handles in a different callback.
   if (Call.getKind() == CE_ObjCMessage)
     return;
   const FunctionType *FuncType = Decl->getFunctionType();
@@ -953,8 +762,6 @@ void VerifiableNonNullChecker::checkPostCall(const CallEvent &Call,
   if (!Region)
     return;
 
-  // CG headers are misannotated. Do not warn for symbols that are the results
-  // of CG calls.
   const SourceManager &SM = C.getSourceManager();
   if (const StringRef FilePath =
           SM.getFilename(SM.getSpellingLoc(Decl->getBeginLoc()));
@@ -967,11 +774,6 @@ void VerifiableNonNullChecker::checkPostCall(const CallEvent &Call,
   const NullabilityState *TrackedNullability =
       State->get<NullabilityMap>(Region);
 
-  // ObjCMessageExpr gets the actual type through
-  // Sema::getMessageSendResultType, instead of using the return type of
-  // MethodDecl directly. The final type is generated by considering the
-  // nullability of receiver and MethodDecl together. Thus, The type of
-  // ObjCMessageExpr is prefer.
   if (const Expr *E = Call.getOriginExpr())
     ReturnType = E->getType();
 
@@ -982,10 +784,6 @@ void VerifiableNonNullChecker::checkPostCall(const CallEvent &Call,
   }
 }
 
-// The return value of a property access is typically a temporary value which
-// will not be tracked in a persistent manner by the analyzer.  We use
-// evalAssume() in order to immediately record constraints on those temporaries
-// at the time they are imposed (e.g. by a nil-check conditional).
 ProgramStateRef VerifiableNonNullChecker::evalAssume(ProgramStateRef State,
                                                      SVal Cond,
                                                      bool Assumption) const {
@@ -999,7 +797,6 @@ ProgramStateRef VerifiableNonNullChecker::evalAssume(ProgramStateRef State,
         Replacement.isConstrainedNonnull = true;
         State = State->set<PropertyAccessesMap>(PropKey, Replacement);
       } else if (IsNonNull.isConstrainedFalse()) {
-        // Space optimization: no point in tracking constrained-null cases
         State = State->remove<PropertyAccessesMap>(PropKey);
       }
     }
@@ -1008,10 +805,6 @@ ProgramStateRef VerifiableNonNullChecker::evalAssume(ProgramStateRef State,
   return State;
 }
 
-/// Explicit casts are trusted. If there is a disagreement in the nullability
-/// annotations in the destination and the source or '0' is casted to nonnull
-/// track the value as having contraditory nullability. This will allow users to
-/// suppress warnings.
 void VerifiableNonNullChecker::checkPostStmt(const ExplicitCastExpr *CE,
                                              CheckerContext &C) const {
   const QualType OriginType = CE->getSubExpr()->getType();
@@ -1027,8 +820,6 @@ void VerifiableNonNullChecker::checkPostStmt(const ExplicitCastExpr *CE,
 
   const Nullability DestNullability = getNullabilityFromAttributes(DestType);
 
-  // No explicit nullability in the destination type, so this cast does not
-  // change the nullability.
   if (DestNullability == Nullability::Unspecified)
     return;
 
@@ -1037,7 +828,6 @@ void VerifiableNonNullChecker::checkPostStmt(const ExplicitCastExpr *CE,
   if (!Region)
     return;
 
-  // When 0 is converted to nonnull mark it as contradicted.
   if (DestNullability == Nullability::Nonnull) {
     if (const NullConstraint Nullness = getNullConstraint(*RegionSVal, State);
         Nullness == NullConstraint::IsNull) {
@@ -1066,16 +856,12 @@ void VerifiableNonNullChecker::checkPostStmt(const ExplicitCastExpr *CE,
   }
 }
 
-/// For a given statement performing a bind, attempt to syntactically
-/// match the expression resulting in the bound value.
 static const Expr *matchValueExprForBind(const Stmt *S) {
-  // For `x = e` the value expression is the right-hand side.
   if (auto *BinOp = dyn_cast<BinaryOperator>(S)) {
     if (BinOp->getOpcode() == BO_Assign)
       return BinOp->getRHS();
   }
 
-  // For `int x = e` the value expression is the initializer.
   if (auto *DS = dyn_cast<DeclStmt>(S)) {
     if (DS->isSingleDecl()) {
       auto *VD = dyn_cast<VarDecl>(DS->getSingleDecl());
@@ -1090,8 +876,6 @@ static const Expr *matchValueExprForBind(const Stmt *S) {
   return nullptr;
 }
 
-/// Propagate the nullability information through binds and warn when nullable
-/// pointer or null symbol is assigned to a pointer with a nonnull type.
 void VerifiableNonNullChecker::checkBind(SVal L, SVal V, const Stmt *S,
                                          CheckerContext &C) const {
   const TypedValueRegion *TVR =
@@ -1113,16 +897,12 @@ void VerifiableNonNullChecker::checkBind(SVal L, SVal V, const Stmt *S,
 
   const NullConstraint RhsNullness = getNullConstraint(*ValDefOrUnknown, State);
 
-  auto ValNullability = Nullability::Nullable; // CHANGED FROM Unspecified
+  auto ValNullability = Nullability::Nullable;
   if (const SymbolRef Sym = ValDefOrUnknown->getAsSymbol())
     ValNullability = getNullabilityFromAttributes(Sym->getType());
 
   const Nullability LocNullability = getNullabilityFromAttributes(LocType);
-
-  // If the type of the RHS expression is nonnull, don't warn. This
-  // enables explicit suppression with a cast to nonnull.
-  auto ValueExprTypeLevelNullability =
-      Nullability::Nullable; // CHANGED FROM Unspecified
+  auto ValueExprTypeLevelNullability = Nullability::Nullable;
   const Expr *ValueExpr = matchValueExprForBind(S);
   if (ValueExpr) {
     ValueExprTypeLevelNullability = getNullabilityFromAttributes(
@@ -1155,16 +935,11 @@ void VerifiableNonNullChecker::checkBind(SVal L, SVal V, const Stmt *S,
     return;
   }
 
-  // If null was returned from a non-null function, mark the nullability
-  // invariant as violated even if the diagnostic was suppressed.
   if (NullAssignedToNonNull) {
     State = State->set<InvariantViolated>(true);
     C.addTransition(State);
     return;
   }
-
-  // Intentionally missing case: '0' is bound to a reference. It is handled by
-  // the DereferenceChecker.
 
   const MemRegion *ValueRegion = getTrackRegion(*ValDefOrUnknown);
   if (!ValueRegion)
@@ -1193,8 +968,6 @@ void VerifiableNonNullChecker::checkBind(SVal L, SVal V, const Stmt *S,
   const auto *BinOp = dyn_cast<BinaryOperator>(S);
 
   if (ValNullability == Nullability::Nullable) {
-    // Trust the static information of the value more than the static
-    // information on the location.
     const Stmt *NullabilitySource = BinOp ? BinOp->getRHS() : S;
     State = State->set<NullabilityMap>(
         ValueRegion, NullabilityState(ValNullability, NullabilitySource));
@@ -1208,6 +981,63 @@ void VerifiableNonNullChecker::checkBind(SVal L, SVal V, const Stmt *S,
         ValueRegion, NullabilityState(LocNullability, NullabilitySource));
     C.addTransition(State);
   }
+}
+
+void VerifiableNonNullChecker::checkPreStmt(const UnaryOperator *UO,
+                                            CheckerContext &C) const {
+  if (isa<CXXThisExpr>(UO->getSubExpr()))
+    return;
+  UnaryOperatorKind OK = UO->getOpcode();
+  if (clang::ento::iterator::isAccessOperator(OK)) {
+    verifyAccess(C, UO->getSubExpr());
+  }
+}
+
+void VerifiableNonNullChecker::checkPreStmt(const BinaryOperator *BO,
+                                            CheckerContext &C) const {
+  BinaryOperatorKind OK = BO->getOpcode();
+  if (clang::ento::iterator::isAccessOperator(OK)) {
+    verifyAccess(C, BO->getLHS());
+  }
+}
+
+void VerifiableNonNullChecker::checkPreStmt(const ArraySubscriptExpr *ASE,
+                                            CheckerContext &C) const {
+  verifyAccess(C, ASE->getLHS());
+}
+
+void VerifiableNonNullChecker::checkPreStmt(const MemberExpr *ME,
+                                            CheckerContext &C) const {
+  if (!ME->isArrow() || ME->isImplicitAccess())
+    return;
+  verifyAccess(C, ME->getBase());
+}
+
+void VerifiableNonNullChecker::verifyAccess(CheckerContext &C,
+                                            const Expr *E) const {
+  if (isPointerNonnullable(E->getType()))
+    return;
+  const ProgramStateRef State = C.getState();
+  const SVal Val = State->getSVal(E, C.getLocationContext());
+
+  const auto DefOrUnknown = Val.getAs<DefinedOrUnknownSVal>();
+  if (!DefOrUnknown)
+    return;
+  if (State->isNonNull(*DefOrUnknown).isConstrainedTrue())
+    return;
+
+  static CheckerProgramPointTag Tag(this, "NullablePointerDereferenced");
+  ExplodedNode *N = C.generateErrorNode(State, &Tag);
+  if (!N)
+    return;
+
+  const MemRegion *Region = getTrackRegion(*DefOrUnknown);
+  if (!Region)
+    return;
+
+  reportBug("Nullable pointer is dereferenced",
+            ErrorKind::NullablePointerDereferenced,
+            CK_NullablePointerDereferenced, N, Region, C.getBugReporter());
 }
 
 void VerifiableNonNullChecker::printState(raw_ostream &Out,
